@@ -1,14 +1,16 @@
 /**
  * server.js - Express backend for Learning Resources
  *
- * This server uses the Google Drive API to list files, including recursively scanning
- * subfolders. It provides the following endpoints:
- *   - GET /api/resources/tree  => Returns a tree structure (folders and files) of the entire Drive folder.
- *   - GET /api/resources/all   => Returns a flat list of all files (ignoring folder structure).
- *   - GET /api/resources/sub/:folderId  => Returns the immediate children of a folder.
- *   - GET /api/preview/:fileId  => Returns an embeddable preview URL for a file.
+ * Endpoints:
+ *   - GET /api/resources/tree        => Returns a tree of folders/files recursively.
+ *   - GET /api/resources/all         => Returns a flat list of all files.
+ *   - GET /api/resources/sub/:folderId => Returns immediate children of a folder.
+ *   - GET /api/preview/:fileId       => Returns an embeddable preview URL for a file.
  *
- * Ensure that .env is configured with: PORT, DRIVE_FOLDER_ID, GOOGLE_APPLICATION_CREDENTIALS.
+ * Environment variables required:
+ *   - PORT             (optional, defaults to 5000)
+ *   - DRIVE_FOLDER_ID  (the root Drive folder ID to read)
+ *   - GOOGLE_SERVICE_ACCOUNT (raw JSON service account credentials)
  */
 
 const express = require('express');
@@ -17,7 +19,8 @@ const dotenv = require('dotenv');
 const { google } = require('googleapis');
 const path = require('path');
 
-// Load environment variables from .env
+// 1) Load environment variables from .env (for local dev only).
+//    In production (Railway), .env is NOT used; environment variables come from Railway's dashboard.
 dotenv.config();
 
 const app = express();
@@ -26,15 +29,29 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Google Drive API setup using service account credentials
+// 2) Parse the service account JSON from GOOGLE_SERVICE_ACCOUNT
+let serviceAccount;
+try {
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT) {
+    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT environment variable.");
+  }
+  serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+  console.log("Service account JSON loaded successfully.");
+} catch (error) {
+  console.error("Error parsing GOOGLE_SERVICE_ACCOUNT:", error);
+  process.exit(1);
+}
+
+// 3) Initialize Google Auth using the parsed credentials
 const auth = new google.auth.GoogleAuth({
+  credentials: serviceAccount,
   scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  // If you wish, specify the keyFile using an environment variable:
-  // keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS || './backend/connected-456212-c3e810ec146f.json'
 });
+
+// 4) Create a Drive client
 const drive = google.drive({ version: 'v3', auth });
 
-// Function to recursively build a tree structure of folder and file data
+// 5) Helper function to recursively build a folder/file tree
 async function listFilesRecursively(folderId) {
   const result = {
     id: folderId,
@@ -44,28 +61,26 @@ async function listFilesRecursively(folderId) {
   };
 
   try {
-    // Get folder metadata (name, etc.)
+    // Get folder metadata
     const folderMeta = await drive.files.get({
       fileId: folderId,
       fields: 'id, name, mimeType'
     });
     result.name = folderMeta.data.name;
 
-    // List immediate children of the folder
+    // List immediate children
     const res = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false`,
       fields: 'files(id, name, mimeType)'
     });
     const files = res.data.files || [];
 
-    // Process each file/folder
+    // Recurse or push file objects
     for (const file of files) {
       if (file.mimeType === 'application/vnd.google-apps.folder') {
-        // Recurse into subfolder
         const subfolder = await listFilesRecursively(file.id);
         result.children.push(subfolder);
       } else {
-        // Simple file object
         result.children.push({
           id: file.id,
           name: file.name,
@@ -80,7 +95,7 @@ async function listFilesRecursively(folderId) {
   return result;
 }
 
-// Function to recursively add all files into a flat list
+// 6) Helper to recursively list *all* files in a flat array
 async function listAllFiles(folderId, allFiles = []) {
   try {
     const res = await drive.files.list({
@@ -88,9 +103,9 @@ async function listAllFiles(folderId, allFiles = []) {
       fields: 'files(id, name, mimeType)'
     });
     const files = res.data.files || [];
+
     for (const file of files) {
       if (file.mimeType === 'application/vnd.google-apps.folder') {
-        // Recur for subfolder
         await listAllFiles(file.id, allFiles);
       } else {
         allFiles.push({
@@ -106,7 +121,9 @@ async function listAllFiles(folderId, allFiles = []) {
   return allFiles;
 }
 
-// Endpoint to return a tree of folders and files
+// 7) Endpoints
+
+// Returns a tree structure (folders/files) recursively
 app.get('/api/resources/tree', async (req, res) => {
   try {
     const tree = await listFilesRecursively(process.env.DRIVE_FOLDER_ID);
@@ -117,7 +134,7 @@ app.get('/api/resources/tree', async (req, res) => {
   }
 });
 
-// Endpoint to return a flat list of all files (ignoring folder structure)
+// Returns a flat list of all files, ignoring folder structure
 app.get('/api/resources/all', async (req, res) => {
   try {
     const files = await listAllFiles(process.env.DRIVE_FOLDER_ID);
@@ -128,24 +145,21 @@ app.get('/api/resources/all', async (req, res) => {
   }
 });
 
-// Endpoint to return the immediate children of a specific folder
+// Returns immediate children of a specific folder
 app.get('/api/resources/sub/:folderId', async (req, res) => {
   try {
     const { folderId } = req.params;
-    // Get folder metadata for name
     const folderMeta = await drive.files.get({
       fileId: folderId,
       fields: 'id, name, mimeType'
     });
-    // List immediate children in the folder
     const listResponse = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false`,
       fields: 'files(id, name, mimeType)'
     });
-    const items = listResponse.data.files || [];
     res.json({
       folderName: folderMeta.data.name,
-      items
+      items: listResponse.data.files || []
     });
   } catch (error) {
     console.error('Error retrieving subfolder:', error.message);
@@ -153,22 +167,22 @@ app.get('/api/resources/sub/:folderId', async (req, res) => {
   }
 });
 
-// Endpoint to generate an embeddable preview URL for a file
+// Returns an embeddable preview URL for a file
 app.get('/api/preview/:fileId', (req, res) => {
   const { fileId } = req.params;
   const embedUrl = `https://drive.google.com/file/d/${fileId}/preview?embedded=true`;
   res.json({ embedUrl });
 });
 
-// Serve static files from the React app's build directory
+// 8) Serve the React build (assuming you built your frontend into ../frontend/build)
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-// The "catch-all" handler: for any request that doesn't match your API routes, send back React's index.html.
+// For React SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
-// Start the server
+// 9) Start the server
 app.listen(port, () => {
   console.log(`Express server is running on port ${port}`);
 });
