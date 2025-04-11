@@ -1,0 +1,30 @@
+/* App.css */
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Body */
+body {
+  font-family: "Roboto", sans-serif;
+  background-color: #ffffff;
+  color: #333;
+}
+
+/* Logo in AppBar */
+.logo {
+  height: 50px;
+  width: 50px;
+  object-fit: cover;
+  margin-right: 10px;
+}
+
+/* Title in AppBar */
+.title {
+  flex-grow: 1;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
