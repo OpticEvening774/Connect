@@ -1,11 +1,6 @@
-# Ignore node_modules in both backend and frontend
 /backend/node_modules/
 /frontend/node_modules/
-
 /frontend/build/
-
-
 *.log
-
 backend/connected-456212-c3e810ec146f.json
-
+.env
