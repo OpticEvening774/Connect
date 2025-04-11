@@ -1,30 +1,24 @@
-# Use Node.js LTS image as a base
 FROM node:18
-
-# Set the working directory to the project root
 WORKDIR /usr/src/app
 
-# Install backend dependencies
+# Install backend deps
 COPY backend/package*.json ./backend/
 RUN cd backend && npm install
 
-# Install frontend dependencies
+# Install frontend deps
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm install
 
-# Copy frontend source and build the React app
+# Build frontend
 COPY frontend/ ./frontend/
 RUN cd frontend && npm run build
 
-# Copy built frontend to backend so Express can serve it
+# Move built frontend to backend
 RUN cp -R frontend/build backend/build
 
-# Copy the rest of the backend code
+# Copy backend source
 COPY backend/ ./backend/
 
-# Expose your backend port (change if necessary)
 EXPOSE 5000
-
-# Set working directory to backend and start the server
-WORKDIR /usr/src/app/backend
-CMD ["node", "server.js"]
+# FINAL: If the server.js is inside /usr/src/app/backend
+CMD ["node", "backend/server.js"]
