@@ -61,7 +61,7 @@ function App() {
       <AppBar position="static">
         <Toolbar style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <img src="/logo.png" alt="ConnectED Logo" className="logo" />
+            <img src="/Logo.png" alt="ConnectED Logo" className="logo" />
             <Typography variant="h6" className="title" style={{ color: '#000' }}>
               ConnectED Knowledge Hub
             </Typography>
