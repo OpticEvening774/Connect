@@ -7,8 +7,6 @@ import SubjectList from './SubjectList';
 import SubfolderView from './SubfolderView';
 import ResourceViewer from './ResourceViewer';
 import AboutUs from './AboutUs';
-import Blog from './Blog';
-import BlogPost from './BlogPost';
 import './App.css';
 
 const theme = createTheme({
@@ -73,9 +71,6 @@ function App() {
             <Button color="inherit" component={Link} to="/about" style={{ color: '#000' }}>
               About Us
             </Button>
-            <Button color="inherit" component={Link} to="/blog" style={{ color: '#000' }}>
-              Blog
-            </Button>
           </div>
         </Toolbar>
       </AppBar>
@@ -85,8 +80,6 @@ function App() {
         <Route path="/folder/:folderId" element={<SubfolderView />} />
         <Route path="/view/:fileId" element={<ResourceViewer />} />
         <Route path="/about" element={<AboutUs />} />
-        <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:id" element={<BlogPost />} />
       </Routes>
     </ThemeProvider>
   );
